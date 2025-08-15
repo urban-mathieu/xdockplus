@@ -1,0 +1,11 @@
+:root{ color-scheme: dark; }
+html,body{ margin:0; padding:0; font:14px/1.4 system-ui,Segoe UI,Roboto,Arial; background:#0d1b2a; color:#e6edf3; }
+header{ display:flex; gap:12px; align-items:center; padding:10px 12px; border-bottom:1px solid #203245; }
+h1{ margin:0; font-size:16px; font-weight:800; }
+#q{ flex:1; max-width:380px; padding:8px 10px; background:#0f253b; color:#fff; border:1px solid #253d56; border-radius:10px; }
+#list{ padding:12px; display:grid; gap:8px; }
+.row{ display:grid; grid-template-columns: 1fr auto auto; gap:10px; align-items:center; background:#10243a; border:1px solid #22364b; border-radius:12px; padding:10px 12px; }
+.name{ font-weight:700; }
+.group{ opacity:.75; }
+.call{ text-decoration:none; background:#1d66ff; color:white; padding:8px 12px; border-radius:999px; }
+.call:hover{ filter:brightness(1.05); }

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "XDock Plus",
+  "version": "1.0.0",
+  "description": "Ajouts et améliorations pour XDock (Jabber, AB, couleurs, code-barres, contacts).",
+  "icons": { "128": "assets/icon.png" },
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://tf-stb.xdock.de/*",
+    "https://gp-eff.alwaysdata.net/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://tf-stb.xdock.de/*"],
+      "js": ["src/jsbarcode.min.js", "src/xdock.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["contacts/*", "assets/*"],
+      "matches": ["https://tf-stb.xdock.de/*"]
+    }
+  ]
+}

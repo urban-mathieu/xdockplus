@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>XDock Plus - Contacts</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Contacts</h1>
+    <input id="q" placeholder="Rechercher (nom / groupe)..." />
+  </header>
+
+  <main id="list"></main>
+
+  <template id="row">
+    <div class="row">
+      <div class="name"></div>
+      <div class="group"></div>
+      <a class="call" title="Appeler">📞</a>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
