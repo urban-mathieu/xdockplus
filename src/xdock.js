@@ -482,160 +482,157 @@ const CONTACTS_API = "https://gp-eff.alwaysdata.net/xdockplus/contacts/api.php";
   })();
 
   // ---------- 7) Icône Contacts (toutes pages) + panneau intégré ----------
-  (function () {
-    "use strict";
+(function () {
+  "use strict";
+  const CONTACTS_API = "https://gp-eff.alwaysdata.net/xdockplus/contacts/api.php";
 
-    const SVG_PHONE = `
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
-           aria-hidden="true" focusable="false" style="display:block;">
-        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21
-                 12.3 12.3 0 003.88.76 1 1 0 011 1V20a1 1 0 01-1 1C10.3 22.13 1.88 13.7
-                 1.88 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.35.26 2.67.76 3.88a1 1 0 01-.21 1.11l-2.3 2.3z"/>
-      </svg>`;
+  const SVG_PHONE = `
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+         aria-hidden="true" focusable="false" style="display:block;">
+      <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.21
+               12.3 12.3 0 003.88.76 1 1 0 011 1V20a1 1 0 01-1 1C10.3 22.13 1.88 13.7
+               1.88 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.35.26 2.67.76 3.88a1 1 0 01-.21 1.11l-2.3 2.3z"/>
+    </svg>`;
 
-    function findTasksLink() {
-      let a = document.querySelector('a[href*="/Taskmanagement"]');
-      if (a) return a;
-      for (const n of document.querySelectorAll('a')) {
-        const t = (n.textContent || "").trim().toLowerCase();
-        if (t === "tâches" || t === "taches") return n;
-      }
-      return null;
-    }
+  function normPhone(p){ const d=String(p||"").replace(/[^\d+]/g,""); return d? (d.startsWith("+")?d:"+"+d):""; }
+  function topCall(phone){ const n=normPhone(phone); if(n) try{ location.href="ciscotel:"+n; }catch{} }
 
-    let panel = null, hiddenNode = null, ifr = null, messageHandler = null;
+  // Insertion bouton — si la nav n’existe pas, on crée un FAB (floating button)
+  function insertButton() {
+    if (document.getElementById("xdp-contacts-btn")) return true;
 
-    function normPhone(p){ const d=String(p||"").replace(/[^\d+]/g,""); return d? (d.startsWith("+")?d:"+"+d):""; }
-    function topCall(phone){
-      const num = normPhone(phone);
-      if (!num) return;
-      try { location.href = "ciscotel:" + num; } catch {}
-    }
-
-    function findHeader() {
-      return document.querySelector("header, .navbar, .topbar, .navbar-fixed-top") || document.body;
-    }
-    function findContentRoot() {
-      const h = Array.from(document.querySelectorAll("h1,h2,h3")).find(el =>
-        /Ihre\s+Lager|Entrée de marchandises|Sortie de marchandises|Gestion du parc|Task/i.test(el.textContent || "")
-      );
-      return h ? (h.closest("section, .container, .container-fluid, main, .content, body > div") || h.parentElement) : null;
-    }
-    function syncTop() {
-      if (!panel) return;
-      const header = findHeader();
-      panel.style.top = (header.getBoundingClientRect().bottom + window.scrollY) + "px";
-    }
-    function onEsc(e){ if (e.key === "Escape") closeContacts(); }
-    function onResize(){ syncTop(); }
-
-    function openContacts() {
-      if (panel) return;
-
-      hiddenNode = findContentRoot();
-      if (hiddenNode) hiddenNode.style.display = "none";
-
-      const header = findHeader();
-      panel = document.createElement("div");
-      panel.id = "xdp-contacts-panel";
-      Object.assign(panel.style, {
-        position:"fixed", left:"0", right:"0", bottom:"0",
-        background:"#0d1b2a", zIndex:"100000",
-        borderTop:"1px solid rgba(255,255,255,.08)"
+    let host = document.querySelector('a[href*="/Taskmanagement"]')?.closest("li");
+    let mode = "nav";
+    if (!host) {
+      // FAB
+      mode = "fab";
+      const fab = document.createElement("button");
+      fab.id = "xdp-contacts-btn";
+      fab.title = "Contacts";
+      fab.innerHTML = SVG_PHONE;
+      Object.assign(fab.style, {
+        position:"fixed", right:"16px", bottom:"16px", zIndex:100000,
+        width:"44px", height:"44px", borderRadius:"12px",
+        border:"1px solid rgba(0,0,0,.2)", background:"#0f62fe", color:"#fff",
+        cursor:"pointer", boxShadow:"0 6px 16px rgba(0,0,0,.25)"
       });
-      syncTop();
-
-      const bar = document.createElement("div");
-      bar.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0f253b;border-bottom:1px solid rgba(255,255,255,.08);";
-      bar.innerHTML = `<div style="font-weight:800;color:#e6edf3">Contacts</div>`;
-      const close = document.createElement("button");
-      close.textContent = "×";
-      close.title = "Fermer";
-      close.style.cssText = "margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#172c43;color:#fff;cursor:pointer;font-size:18px;";
-      close.onclick = closeContacts;
-      bar.appendChild(close);
-      panel.appendChild(bar);
-
-      // On passe l’URL de l’API à la page contacts via query string
-      const params = new URLSearchParams({ api: CONTACTS_API });
-      const urlWithApi = chrome.runtime.getURL("contacts/index.html") + "?" + params.toString();
-
-      ifr = document.createElement("iframe");
-      ifr.src = urlWithApi;
-      ifr.style.cssText = "border:0;width:100%;height:calc(100% - 48px);background:#0d1b2a;";
-      panel.appendChild(ifr);
-
-      document.body.appendChild(panel);
-
-      messageHandler = (e) => {
-        if (!ifr || e.source !== ifr.contentWindow) return;
-        const d = e.data;
-        if (d && d.xdockplus === true && d.type === "CALL" && d.phone) topCall(d.phone);
-      };
-      window.addEventListener("message", messageHandler);
-
-      document.addEventListener("keydown", onEsc, { passive:true });
-      window.addEventListener("resize", onResize, { passive:true });
-    }
-
-    function closeContacts() {
-      if (messageHandler) window.removeEventListener("message", messageHandler);
-      messageHandler = null;
-      if (panel) { panel.remove(); panel = null; }
-      ifr = null;
-      if (hiddenNode) hiddenNode.style.display = "";
-      window.removeEventListener("resize", onResize);
-      document.removeEventListener("keydown", onEsc);
-    }
-
-    function insertIcon() {
-      if (document.getElementById("xdp-contacts-navitem")) return true;
-      const tasksA = findTasksLink(); if (!tasksA) return false;
-
-      const tasksLI = tasksA.closest("li") || tasksA.parentElement; if (!tasksLI) return false;
-
-      const newLI = document.createElement("li");
-      newLI.id = "xdp-contacts-navitem";
-      newLI.className = tasksLI.className || "";
-      newLI.style.whiteSpace = "nowrap";
-      newLI.style.display = getComputedStyle(tasksLI).display || "";
-
-      const newA = document.createElement("a");
-      newA.href = "javascript:void(0)";
-      newA.title = "Contacts";
-      newA.className = tasksA.className || "";
-      Object.assign(newA.style, {
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        gap: "6px", paddingLeft: "6px", paddingRight: "6px",
-        height: getComputedStyle(tasksA).height || "28px", lineHeight: "1", verticalAlign: "middle"
-      });
-
-      newA.innerHTML = SVG_PHONE;
-      const svg = newA.firstElementChild;
-      svg.style.width = "20px"; svg.style.height = "20px"; svg.style.fill = "#ffffff"; svg.style.opacity = "0.95";
-      newA.addEventListener("mouseenter", () => { svg.style.opacity = "1"; });
-      newA.addEventListener("mouseleave", () => { svg.style.opacity = "0.95"; });
-      newA.addEventListener("click", () => panel ? closeContacts() : openContacts());
-
-      newLI.appendChild(newA);
-      if (tasksLI.nextSibling) tasksLI.parentElement.insertBefore(newLI, tasksLI.nextSibling);
-      else tasksLI.parentElement.appendChild(newLI);
-
-      const navParent = tasksLI.parentElement;
-      const disp = getComputedStyle(navParent).display;
-      if (disp.includes("flex")) { navParent.style.flexWrap = "nowrap"; navParent.style.alignItems = "center"; }
-
+      const svg = fab.querySelector("svg"); svg.style.width="22px"; svg.style.height="22px"; svg.style.fill="#fff";
+      document.body.appendChild(fab);
+      fab.addEventListener("click", openPanelSafely);
       return true;
     }
 
-    let tries = 0;
-    const iv = setInterval(() => { const ok = insertIcon(); if (ok || ++tries > 40) clearInterval(iv); }, 350);
-    const mo = new MutationObserver(() => { if (!document.getElementById("xdp-contacts-navitem")) insertIcon(); });
-    mo.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => mo.disconnect(), 20000);
-  })();
+    // Ajout dans la nav
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    li.id = "xdp-contacts-btn";
+    a.href = "javascript:void(0)";
+    a.title = "Contacts";
+    a.innerHTML = SVG_PHONE;
+    const svg = a.firstElementChild; svg.style.width="20px"; svg.style.height="20px"; svg.style.fill="#fff";
+    a.style.display = "inline-flex"; a.style.alignItems="center"; a.style.gap="6px"; a.style.padding="0 6px";
+    li.appendChild(a);
+    (host.parentElement || host).appendChild(li);
+    a.addEventListener("click", openPanelSafely);
+    return true;
+  }
 
-})(); // 
+  let panel = null, ifr=null, hiddenNode=null, messageHandler=null;
+  function findHeader(){
+    return document.querySelector("header, .navbar, .topbar, .navbar-fixed-top") || document.body;
+  }
+  function findContentRoot(){
+    const h = Array.from(document.querySelectorAll("h1,h2,h3")).find(el =>
+      /Ihre\s+Lager|Entrée de marchandises|Sortie de marchandises|Gestion du parc|Task/i.test(el.textContent||"")
+    );
+    return h ? (h.closest("section, .container, .container-fluid, main, .content, body > div") || h.parentElement) : null;
+  }
+  function syncTop(){
+    if (!panel) return;
+    const header = findHeader();
+    panel.style.top = (header.getBoundingClientRect().bottom + window.scrollY) + "px";
+  }
+
+  function openPanel() {
+    if (panel) return;
+    hiddenNode = findContentRoot(); if (hiddenNode) hiddenNode.style.display = "none";
+
+    panel = document.createElement("div");
+    Object.assign(panel.style, {
+      position:"fixed", left:"0", right:"0", bottom:"0",
+      background:"#0d1b2a", zIndex:100000, borderTop:"1px solid rgba(255,255,255,.08)"
+    });
+    document.body.appendChild(panel); syncTop();
+    const bar = document.createElement("div");
+    bar.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0f253b;border-bottom:1px solid rgba(255,255,255,.08);";
+    bar.innerHTML=`<div style="font-weight:800;color:#e6edf3">Contacts</div>`;
+    const close = document.createElement("button");
+    close.textContent="×"; close.title="Fermer";
+    close.style.cssText="margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#172c43;color:#fff;cursor:pointer;font-size:18px;";
+    close.onclick = closePanel;
+    bar.appendChild(close); panel.appendChild(bar);
+
+    // charge l’iframe contacts (doit être web_accessible_resources)
+    const params = new URLSearchParams({ api: CONTACTS_API });
+    const urlWithApi = chrome.runtime.getURL("contacts/index.html") + "?" + params.toString();
+
+    ifr = document.createElement("iframe");
+    ifr.src = urlWithApi;
+    ifr.style.cssText = "border:0;width:100%;height:calc(100% - 48px);background:#0d1b2a;";
+    panel.appendChild(ifr);
+
+    messageHandler = (e) => {
+      if (!ifr || e.source !== ifr.contentWindow) return;
+      const d = e.data;
+      if (d && d.xdockplus === true && d.type === "CALL" && d.phone) topCall(d.phone);
+    };
+    window.addEventListener("message", messageHandler);
+
+    document.addEventListener("keydown", onEsc, { passive:true });
+    window.addEventListener("resize", onResize, { passive:true });
+  }
+
+  function closePanel(){
+    if (messageHandler) window.removeEventListener("message", messageHandler);
+    messageHandler=null;
+    panel?.remove(); panel=null; ifr=null;
+    if (hiddenNode) hiddenNode.style.display="";
+    window.removeEventListener("resize", onResize);
+    document.removeEventListener("keydown", onEsc);
+  }
+  function onEsc(e){ if(e.key==="Escape") closePanel(); }
+  function onResize(){ syncTop(); }
+
+  // Fallback si l’iframe est bloquée par CSP → ouverture dans un nouvel onglet
+  function openPanelSafely(){
+    try {
+      // test rapide: essaye d’ouvrir l’iframe, si on a une erreur de charge dans ~300ms → fallback
+      let failed = false;
+      const t = setTimeout(() => {
+        if (!panel || !ifr || failed) return;
+        // si l’iframe refuse de se peindre (souvent CSP), on fallback
+        if (!ifr.contentWindow) { failed = true; fallbackNewTab(); }
+      }, 300);
+
+      openPanel();
+      ifr.addEventListener("error", () => { failed = true; clearTimeout(t); fallbackNewTab(); }, { once:true });
+    } catch {
+      fallbackNewTab();
+    }
+  }
+  function fallbackNewTab(){
+    const params = new URLSearchParams({ api: CONTACTS_API });
+    const urlWithApi = chrome.runtime.getURL("contacts/index.html") + "?" + params.toString();
+    window.open(urlWithApi, "_blank"); // nouvel onglet de l’extension
+  }
+
+  // essaye d’insérer le bouton; sinon FAB
+  let tries=0;
+  const iv=setInterval(()=>{ const ok=insertButton(); if(ok||++tries>40) clearInterval(iv); },350);
+  new MutationObserver(()=>{ if(!document.getElementById("xdp-contacts-btn")) insertButton(); })
+    .observe(document.body,{childList:true,subtree:true});
+  setTimeout(()=>{/* stop observer auto si tout va bien */},20000);
+})();
 
 // ---------- 8) Echange de palettes/Echange pas de palettes ---------
 (function () {
@@ -720,3 +717,4 @@ const CONTACTS_API = "https://gp-eff.alwaysdata.net/xdockplus/contacts/api.php";
   // si la page réinjecte du DOM (ajax), on recâble
   new MutationObserver(wireOnceOnSave).observe(document.body, { childList: true, subtree: true });
 })();
+
