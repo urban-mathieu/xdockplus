@@ -140,52 +140,88 @@ const CONTACTS_API = "https://gp-eff.alwaysdata.net/xdockplus/contacts/api.php";
   })();
 
   // ---------- 3) Code-barres porte (Warenausgang/*) ----------
-  (function barcode() {
-    try {
-      if (!PATH.startsWith("/Warenausgang/")) return;
-      Q("#barcode-mini")?.remove(); Q("#barcode-zoom")?.remove();
+  // ---------- 3) Code-barres porte (Warenausgang/*) ----------
+(function barcode() {
+  try {
+    if (!location.pathname.includes("/Warenausgang/")) return;
 
-      const porteLabel = Array.from(QSA("label")).find(l => /porte|door/i.test(l.textContent || ""));
-      const porteInput = porteLabel ? porteLabel.parentElement?.querySelector("input") : null;
-      const porte = porteInput && (porteInput.value || "").trim() ? porteInput.value.trim() : null;
-      if (!porte) return;
+    // attendre JsBarcode ET le DOM
+    const wait = (cond, t = 0) => new Promise(res => {
+      const iv = setInterval(() => { if (cond()) { clearInterval(iv); res(); } }, 120);
+      setTimeout(() => { clearInterval(iv); res(); }, 4000);
+    });
+
+    const findDoorInput = () => {
+      // 1) par label (FR/EN/DE)
+      const labels = Array.from(document.querySelectorAll("label"));
+      const doorLab = labels.find(l => /(^|\s)(porte|door|tor|tür)(\s|:|$)/i.test(l.textContent||""));
+      let input = doorLab ? doorLab.parentElement?.querySelector("input,select") : null;
+      if (input) return input;
+      // 2) par id/name connus
+      input = document.querySelector([
+        'input[id*="Porte"]','input[name*="Porte"]',
+        'input[id*="Door"]','input[name*="Door"]',
+        'input[id*="Tor"]','input[name*="Tor"]','input[id*="tuer"]','input[name*="tuer"]',
+        'select[id*="Porte"]','select[name*="Porte"]',
+        'select[id*="Door"]','select[name*="Door"]',
+        'select[id*="Tor"]','select[name*="Tor"]','select[id*="tuer"]','select[name*="tuer"]'
+      ].join(',')); 
+      return input || null;
+    };
+
+    const render = () => {
+      // clean
+      document.getElementById("barcode-mini")?.remove();
+      document.getElementById("barcode-zoom")?.remove();
+
+      const doorEl = findDoorInput();
+      if (!doorEl) return;
+
+      const val = (doorEl.tagName === "SELECT")
+        ? (doorEl.selectedOptions?.[0]?.textContent || doorEl.value || "")
+        : (doorEl.value || "");
+      const porte = val.trim();
+      if (!porte) return; // pas de porte -> pas de code-barres
 
       const mini = document.createElement("div");
       mini.id = "barcode-mini";
       mini.style.cssText = "margin-top:10px;background:#fff;border:1px solid #000;padding:8px;width:fit-content;cursor:pointer;border-radius:10px";
       mini.innerHTML = `<svg id="barcodeCanvas"></svg>`;
-      porteInput?.parentElement?.appendChild(mini);
+      doorEl.parentElement?.appendChild(mini);
 
       const overlay = document.createElement("div");
       overlay.id = "barcode-zoom";
       Object.assign(overlay.style, {
-        position:"fixed",top:"0",left:"0",width:"100%",height:"100%",background:"rgba(0,0,0,0.7)",
+        position:"fixed",top:"0",left:"0",width:"100%",height:"100%",background:"rgba(0,0,0,.7)",
         display:"none",zIndex:999999,justifyContent:"center",alignItems:"center"
       });
       overlay.innerHTML = `
-        <div style="position: relative; background:white; padding:20px; border-radius:10px; max-width:90vw;">
+        <div style="position: relative; background:#fff; padding:20px; border-radius:10px; max-width:90vw;">
           <span id="closeZoom" style="position:absolute;top:10px;right:10px;cursor:pointer;font-size:20px;color:#444;">❌</span>
-          <h2 style="text-align:center;">Porte ${porte}</h2>
+          <h2 style="text-align:center;">${porte}</h2>
           <svg id="barcodeZoom"></svg>
         </div>`;
       document.body.appendChild(overlay);
 
-      ensureJsBarcodeLocal().then(() => {
-        const miniSVG = Q("#barcodeCanvas");
-        if (miniSVG) JsBarcode(miniSVG, String(porte), { format:"CODE128", width:2, height:40, displayValue:false });
-        mini.onclick = () => {
-          const zoomSVG = Q("#barcodeZoom");
-          if (zoomSVG) JsBarcode(zoomSVG, String(porte), { format:"CODE128", width:4, height:120, displayValue:true });
-          overlay.style.display = "flex";
-        };
-      }).catch(() => {
-        console.warn("[XDockPlus] JsBarcode local absent — code-barres non généré.");
-      });
+      // Génération
+      JsBarcode(document.getElementById("barcodeCanvas"), String(porte), { format:"CODE128", width:2, height:40, displayValue:false });
+      mini.onclick = () => {
+        JsBarcode(document.getElementById("barcodeZoom"), String(porte), { format:"CODE128", width:4, height:120, displayValue:true });
+        overlay.style.display = "flex";
+      };
+      document.getElementById("closeZoom").onclick = () => overlay.style.display = "none";
+      document.addEventListener("keydown", e => { if (e.key === "Escape") overlay.style.display = "none"; }, { passive:true });
 
-      Q("#closeZoom")?.addEventListener("click", () => { overlay.style.display = "none"; });
-      document.addEventListener("keydown", e => { if (e.key === "Escape") overlay.style.display = "none"; }, { passive: true });
-    } catch {}
-  })();
+      // met à jour si la porte change
+      doorEl.addEventListener("change", () => render(), { once:true });
+      doorEl.addEventListener("input", () => render(), { once:true });
+    };
+
+    wait(() => typeof JsBarcode !== "undefined").then(() => {
+      setTimeout(render, 200); // petit délai pour laisser le DOM finir
+    });
+  } catch {}
+})();
 
   // ---------- 4) Compteurs + filtre voyants (Gestion du parc) ----------
   (function counters() {
@@ -717,4 +753,5 @@ const CONTACTS_API = "https://gp-eff.alwaysdata.net/xdockplus/contacts/api.php";
   // si la page réinjecte du DOM (ajax), on recâble
   new MutationObserver(wireOnceOnSave).observe(document.body, { childList: true, subtree: true });
 })();
+
 
