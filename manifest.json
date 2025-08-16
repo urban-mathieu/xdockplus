@@ -16,10 +16,13 @@
       "run_at": "document_idle"
     }
   ],
-  "web_accessible_resources": [
-    {
-      "resources": ["contacts/*", "assets/*"],
-      "matches": ["https://tf-stb.xdock.de/*"]
-    }
+  "web_accessible_resources": [{
+  "resources": [
+    "contacts/*",              // <-- index.html + JS/CSS de contacts
+    "icon.png"
+  ],
+  "matches": ["https://tf-stb.xdock.de/*"]
+}
   ]
 }
+
